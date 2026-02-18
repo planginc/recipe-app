@@ -52,8 +52,13 @@ function HomePage() {
       filtered = filtered.filter(recipe => {
         const title = recipe.title?.toLowerCase() || ''
         const content = recipe.content?.toLowerCase() || ''
-        const tags = recipe.tags?.join(' ').toLowerCase() || ''
-        return title.includes(query) || content.includes(query) || tags.includes(query)
+        const metadata = typeof recipe.metadata === 'string'
+          ? JSON.parse(recipe.metadata || '{}')
+          : (recipe.metadata || {})
+        const tags = (metadata.dietary_tags || []).join(' ').toLowerCase()
+        const folder = (metadata.physical_location || '').toLowerCase()
+        const notes = (metadata.your_notes || '').toLowerCase()
+        return title.includes(query) || content.includes(query) || tags.includes(query) || folder.includes(query) || notes.includes(query)
       })
     }
 

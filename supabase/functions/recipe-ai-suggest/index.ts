@@ -32,9 +32,8 @@ serve(async (req) => {
     // Fetch recipes
     const { data: recipes, error: recipesError } = await supabase
       .from('notes')
-      .select('id, title, metadata, tags')
+      .select('id, title, content, metadata')
       .eq('note_type', 'recipe')
-      .eq('user_telegram_id', userId)
 
     if (recipesError) throw recipesError
 
@@ -142,10 +141,16 @@ Based on this information, recommend 2-3 recipes that best match what Pam is loo
     try {
       parsedResponse = JSON.parse(responseText)
     } catch {
-      // If Claude didn't return JSON, wrap it
-      parsedResponse = {
-        message: responseText,
-        recommendations: []
+      // Claude sometimes wraps JSON in markdown — extract the object
+      const match = responseText.match(/\{[\s\S]*\}/)
+      if (match) {
+        try {
+          parsedResponse = JSON.parse(match[0])
+        } catch {
+          parsedResponse = { message: responseText, recommendations: [] }
+        }
+      } else {
+        parsedResponse = { message: responseText, recommendations: [] }
       }
     }
 

@@ -2,40 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { ArrowLeft, Loader2, ExternalLink, Save, Trash2, Edit2 } from 'lucide-react'
-
-const DIETARY_OPTIONS = [
-  { id: 'keto', label: 'Keto-Friendly' },
-  { id: 'low-carb', label: 'Low-Carb' },
-  { id: 'paleo', label: 'Paleo' },
-  { id: 'whole30', label: 'Whole30' },
-  { id: 'gluten-free', label: 'Gluten-Free' },
-  { id: 'vegetarian', label: 'Vegetarian' },
-  { id: 'dairy-free', label: 'Dairy-Free' },
-  { id: 'high-protein', label: 'High-Protein' }
-]
-
-const FOLDER_OPTIONS = [
-  'Folder 1 - Chicken & Poultry',
-  'Folder 2 - Beef',
-  'Folder 3 - Pork & Lamb',
-  'Folder 4 - Fish & Seafood',
-  'Folder 5 - Eggs',
-  'Folder 6 - Beans & Legumes',
-  'Folder 7 - Pasta & Noodles',
-  'Folder 8 - Rice & Grains',
-  'Folder 9 - Potatoes',
-  'Folder 10 - Vegetable Mains',
-  'Folder 11 - Salads',
-  'Folder 12 - Soups, Stews & Broth',
-  'Folder 13 - Dressings, Sauces & Marinades',
-  'Folder 14 - Dips & Spreads',
-  'Folder 15 - Bread & Baking',
-  'Folder 16 - Breakfast Items',
-  'Folder 17 - Desserts & Sweets',
-  'Folder 18 - Beverages & Smoothies',
-  'Folder 19 - Snacks & Appetizers',
-  'Folder 20 - Condiments & Preserves'
-]
+import { FOLDER_OPTIONS, DIETARY_OPTIONS } from '../lib/constants'
 
 const USER_ID = '6285585111'
 
@@ -91,6 +58,7 @@ function RecipeDetailPage() {
       setSelectedFolder(metadata.physical_location || '')
       setDietaryTags(metadata.dietary_tags || [])
       setUserNotes(metadata.your_notes || '')
+      setImageUrl(metadata.image_url || '')
     } catch (err) {
       console.error('Error fetching recipe:', err)
       setError(err.message)
@@ -207,8 +175,10 @@ function RecipeDetailPage() {
       console.log('Suggested tags:', suggested)
       
       if (suggested.length > 0) {
-        setDietaryTags(suggested)
-        alert(`AI suggested tags: ${suggested.join(', ')}\n\nReview and click Save Changes to apply.`)
+        const merged = [...new Set([...dietaryTags, ...suggested])]
+        setDietaryTags(merged)
+        const newTags = suggested.filter(t => !dietaryTags.includes(t))
+        alert(`AI added tags: ${newTags.length > 0 ? newTags.join(', ') : '(none new)'}${newTags.length < suggested.length ? `\nAlready had: ${suggested.filter(t => dietaryTags.includes(t)).join(', ')}` : ''}\n\nReview and click Save Changes to apply.`)
       } else {
         alert('AI could not detect any dietary tags for this recipe.')
       }

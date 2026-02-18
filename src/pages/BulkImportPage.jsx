@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { ArrowLeft, Loader2, CheckCircle, XCircle } from 'lucide-react'
+import { FOLDER_OPTIONS } from '../lib/constants'
 
 const USER_ID = '6285585111'
 
@@ -10,7 +11,7 @@ function BulkImportPage() {
   const [urls, setUrls] = useState('')
   const [importing, setImporting] = useState(false)
   const [results, setResults] = useState([])
-  const [defaultFolder, setDefaultFolder] = useState('Folder 1 - Chicken & Poultry')
+  const [defaultFolder, setDefaultFolder] = useState('')
 
   async function handleImport() {
     const urlList = urls.split('\n').filter(url => url.trim())
@@ -142,16 +143,9 @@ function BulkImportPage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white"
             >
               <option value="">No Folder</option>
-              <option value="Folder 1 - Chicken & Poultry">Folder 1 - Chicken & Poultry</option>
-              <option value="Folder 2 - Beef">Folder 2 - Beef</option>
-              <option value="Folder 3 - Pork">Folder 3 - Pork</option>
-              <option value="Folder 4 - Seafood">Folder 4 - Seafood</option>
-              <option value="Folder 5 - Soups & Stews">Folder 5 - Soups & Stews</option>
-              <option value="Folder 6 - Salads">Folder 6 - Salads</option>
-              <option value="Folder 7 - Sides">Folder 7 - Sides</option>
-              <option value="Folder 8 - Desserts">Folder 8 - Desserts</option>
-              <option value="Folder 9 - Breakfast">Folder 9 - Breakfast</option>
-              <option value="Folder 10 - Appetizers">Folder 10 - Appetizers</option>
+              {FOLDER_OPTIONS.map(folder => (
+                <option key={folder} value={folder}>{folder}</option>
+              ))}
             </select>
           </div>
 

@@ -37,9 +37,15 @@ Available tags:
 - dairy-free: No milk, cheese, cream, butter, or yogurt
 - high-protein: Significant protein content (over 20g per serving)
 
+IMPORTANT: Even with limited information, make reasonable inferences. For example:
+- Chicken dishes are typically gluten-free and high-protein unless breading is mentioned
+- Beef/pork/fish dishes are usually high-protein
+- If no grains, dairy, or legumes are mentioned, it's likely paleo/whole30
+- If no obvious carbs are mentioned, consider low-carb
+
 Respond with ONLY a JSON array of applicable tag IDs. For example: ["keto", "gluten-free", "dairy-free"]
 
-If no tags apply, return an empty array: []`
+Be generous with tags when reasonable - it's better to suggest a tag than to return nothing.`
 
     const userPrompt = `Recipe Title: ${title}
 
@@ -80,8 +86,17 @@ Which dietary tags apply to this recipe?`
     try {
       tags = JSON.parse(responseText)
     } catch {
-      // If Claude didn't return valid JSON, return empty array
-      tags = []
+      // Claude sometimes wraps JSON in markdown or extra text — extract the array
+      const match = responseText.match(/\[[\s\S]*\]/)
+      if (match) {
+        try {
+          tags = JSON.parse(match[0])
+        } catch {
+          tags = []
+        }
+      } else {
+        tags = []
+      }
     }
 
     return new Response(
