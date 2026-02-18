@@ -51,6 +51,15 @@ serve(async (req) => {
         ? JSON.parse(recipe.metadata || '{}')
         : (recipe.metadata || {})
       
+      // Support both old string notes and new dated array format
+      const rawNotes = metadata.your_notes
+      let notesText = ''
+      if (Array.isArray(rawNotes)) {
+        notesText = rawNotes.map(n => `${n.date || 'Undated'}: ${n.text}`).join(' | ')
+      } else if (rawNotes) {
+        notesText = rawNotes
+      }
+
       return {
         id: recipe.id,
         title: recipe.title,
@@ -58,7 +67,7 @@ serve(async (req) => {
         tried: metadata.tried_status || false,
         dietary_tags: metadata.dietary_tags || [],
         folder: metadata.physical_location || 'Uncategorized',
-        freezer_components: metadata.freezer_components || []
+        notes: notesText || undefined
       }
     })
 

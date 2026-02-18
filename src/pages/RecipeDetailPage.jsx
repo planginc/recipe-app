@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
-import { ArrowLeft, Loader2, ExternalLink, Save, Trash2, Edit2 } from 'lucide-react'
+import { ArrowLeft, Loader2, ExternalLink, Save, Trash2, Plus, X } from 'lucide-react'
 import { FOLDER_OPTIONS, DIETARY_OPTIONS } from '../lib/constants'
-
-const USER_ID = '6285585111'
 
 function RecipeDetailPage() {
   const { id } = useParams()
@@ -19,19 +17,15 @@ function RecipeDetailPage() {
   const [isTried, setIsTried] = useState(false)
   const [selectedFolder, setSelectedFolder] = useState('')
   const [dietaryTags, setDietaryTags] = useState([])
-  const [userNotes, setUserNotes] = useState('')
+  const [notes, setNotes] = useState([])
+  const [newNoteText, setNewNoteText] = useState('')
+  const [addingNote, setAddingNote] = useState(false)
   const [imageUrl, setImageUrl] = useState('')
   const [editingImage, setEditingImage] = useState(false)
-  const [editingNotes, setEditingNotes] = useState(false)
   const [autoTagging, setAutoTagging] = useState(false)
-  
-  // Freezer inventory
-  const [freezerItems, setFreezerItems] = useState([])
-  const [usedItems, setUsedItems] = useState({})
 
   useEffect(() => {
     fetchRecipe()
-    fetchFreezerItems()
   }, [id])
 
   async function fetchRecipe() {
@@ -57,8 +51,17 @@ function RecipeDetailPage() {
       setIsTried(metadata.tried_status || false)
       setSelectedFolder(metadata.physical_location || '')
       setDietaryTags(metadata.dietary_tags || [])
-      setUserNotes(metadata.your_notes || '')
       setImageUrl(metadata.image_url || '')
+
+      // Parse notes — migrate from old string format to dated entries
+      const rawNotes = metadata.your_notes
+      if (Array.isArray(rawNotes)) {
+        setNotes(rawNotes)
+      } else if (rawNotes && typeof rawNotes === 'string') {
+        setNotes([{ date: null, text: rawNotes }])
+      } else {
+        setNotes([])
+      }
     } catch (err) {
       console.error('Error fetching recipe:', err)
       setError(err.message)
@@ -67,36 +70,21 @@ function RecipeDetailPage() {
     }
   }
 
-  async function fetchFreezerItems() {
-    try {
-      const { data, error } = await supabase
-        .from('freezer_inventory')
-        .select('*')
-        .eq('user_telegram_id', USER_ID)
-        .order('item_name', { ascending: true })
-
-      if (error) throw error
-      setFreezerItems(data || [])
-    } catch (err) {
-      console.error('Error fetching freezer items:', err)
-    }
-  }
-
-  async function handleSave() {
+  async function handleSave(notesOverride) {
     try {
       setSaving(true)
-      
-      const currentMetadata = typeof recipe.metadata === 'string' 
-        ? JSON.parse(recipe.metadata || '{}') 
+
+      const currentMetadata = typeof recipe.metadata === 'string'
+        ? JSON.parse(recipe.metadata || '{}')
         : (recipe.metadata || {})
-      
+
       const updatedMetadata = {
         ...currentMetadata,
         rating,
         tried_status: isTried,
         physical_location: selectedFolder,
         dietary_tags: dietaryTags,
-        your_notes: userNotes,
+        your_notes: notesOverride || notes,
         image_url: imageUrl
       }
 
@@ -190,70 +178,21 @@ function RecipeDetailPage() {
     }
   }
 
-  function handleFreezerItemToggle(itemId) {
-    setUsedItems(prev => {
-      const newUsed = { ...prev }
-      if (newUsed[itemId]) {
-        delete newUsed[itemId]
-      } else {
-        newUsed[itemId] = 1
-      }
-      return newUsed
-    })
+  function handleAddNote() {
+    if (!newNoteText.trim()) return
+    const entry = {
+      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+      text: newNoteText.trim()
+    }
+    setNotes(prev => [entry, ...prev])
+    setNewNoteText('')
+    setAddingNote(false)
   }
 
-  function handleQuantityChange(itemId, quantity) {
-    setUsedItems(prev => ({
-      ...prev,
-      [itemId]: parseFloat(quantity) || 0
-    }))
-  }
-
-  async function handleUpdateInventory() {
-    if (Object.keys(usedItems).length === 0) {
-      alert('Please select at least one freezer item to update.')
-      return
-    }
-
-    try {
-      setSaving(true)
-
-      // Log each usage and update inventory
-      for (const [itemId, quantity] of Object.entries(usedItems)) {
-        const item = freezerItems.find(i => i.id === parseInt(itemId))
-        if (!item || quantity <= 0) continue
-
-        // Log the usage
-        await supabase
-          .from('recipe_usage_log')
-          .insert([{
-            user_telegram_id: USER_ID,
-            recipe_id: parseInt(id),
-            freezer_item_name: item.item_name,
-            quantity_used: quantity
-          }])
-
-        // Update inventory (reduce quantity)
-        const newQuantity = Math.max(0, item.quantity - quantity)
-        await supabase
-          .from('freezer_inventory')
-          .update({ 
-            quantity: newQuantity,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', item.id)
-      }
-
-      // Reset used items and refresh
-      setUsedItems({})
-      fetchFreezerItems()
-      alert('Freezer inventory updated successfully!')
-    } catch (err) {
-      console.error('Error updating inventory:', err)
-      alert('Error updating inventory: ' + err.message)
-    } finally {
-      setSaving(false)
-    }
+  function handleDeleteNote(index) {
+    const updatedNotes = notes.filter((_, i) => i !== index)
+    setNotes(updatedNotes)
+    handleSave(updatedNotes)
   }
 
   if (loading) {
@@ -523,115 +462,88 @@ function RecipeDetailPage() {
           </div>
         </div>
 
-        {/* Freezer Components Used */}
-        {freezerItems.length > 0 && (
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">🧊 Freezer Components Used</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Check which freezer items you used for this recipe. Quantities will be automatically reduced.
-            </p>
-            <div className="space-y-3 mb-4">
-              {freezerItems.map(item => (
-                <div key={item.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
-                  <input
-                    type="checkbox"
-                    checked={!!usedItems[item.id]}
-                    onChange={() => handleFreezerItemToggle(item.id)}
-                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium text-gray-900">{item.item_name}</div>
-                    <div className="text-sm text-gray-500">
-                      Available: {item.quantity} {item.unit}
-                    </div>
-                  </div>
-                  {usedItems[item.id] !== undefined && (
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm text-gray-600">Used:</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={item.quantity}
-                        step="0.5"
-                        value={usedItems[item.id]}
-                        onChange={(e) => handleQuantityChange(item.id, e.target.value)}
-                        className="w-20 px-3 py-1 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
-                      />
-                      <span className="text-sm text-gray-600">{item.unit}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {Object.keys(usedItems).length > 0 && (
-              <button
-                onClick={handleUpdateInventory}
-                disabled={saving}
-                className="flex items-center gap-2 bg-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-purple-700 transition-colors disabled:opacity-50"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                {saving ? 'Updating...' : 'Update Inventory'}
-              </button>
-            )}
-          </div>
-        )}
-
         {/* Your Notes */}
         <div className="bg-white rounded-xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-gray-900">Your Notes</h2>
-            {!editingNotes && (
+            {!addingNote && (
               <button
-                onClick={() => setEditingNotes(true)}
-                className="flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
+                onClick={() => setAddingNote(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
               >
-                <Edit2 className="w-4 h-4" />
-                Edit Notes
+                <Plus className="w-4 h-4" />
+                Add Note
               </button>
             )}
           </div>
-          
-          {editingNotes ? (
-            <>
+
+          {/* Add Note Form */}
+          {addingNote && (
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="text-sm font-medium text-blue-800 mb-2">
+                {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+              </div>
               <textarea
-                value={userNotes}
-                onChange={(e) => setUserNotes(e.target.value)}
-                placeholder="Add your personal notes here... What worked well? What modifications did you make? Would you make it again?"
-                rows={8}
+                value={newNoteText}
+                onChange={(e) => setNewNoteText(e.target.value)}
+                placeholder="What worked well? What would you change next time?"
+                rows={4}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-none"
                 autoFocus
               />
-              <div className="mt-4 flex items-center gap-3">
+              <div className="mt-3 flex items-center gap-3">
                 <button
-                  onClick={async () => {
-                    await handleSave()
-                    setEditingNotes(false)
+                  onClick={() => {
+                    const entry = {
+                      date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+                      text: newNoteText.trim()
+                    }
+                    const updatedNotes = [entry, ...notes]
+                    setNotes(updatedNotes)
+                    setNewNoteText('')
+                    setAddingNote(false)
+                    handleSave(updatedNotes)
                   }}
-                  disabled={saving}
-                  className="flex items-center gap-2 bg-green-600 text-white px-6 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                  disabled={saving || !newNoteText.trim()}
+                  className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {saving ? 'Saving...' : 'Save Notes'}
+                  {saving ? 'Saving...' : 'Save Note'}
                 </button>
                 <button
-                  onClick={() => setEditingNotes(false)}
-                  className="px-6 py-2 text-gray-700 hover:bg-gray-100 rounded-lg font-medium transition-colors"
+                  onClick={() => { setAddingNote(false); setNewNoteText('') }}
+                  className="px-5 py-2 text-gray-700 hover:bg-gray-100 rounded-lg text-sm font-medium transition-colors"
                 >
                   Cancel
                 </button>
               </div>
-            </>
-          ) : (
-            <div className="min-h-[200px]">
-              {userNotes ? (
-                <div className="prose max-w-none text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border border-gray-200">
-                  {userNotes}
+            </div>
+          )}
+
+          {/* Notes List */}
+          {notes.length > 0 ? (
+            <div className="space-y-3">
+              {notes.map((note, idx) => (
+                <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-200 group">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-500">
+                      {note.date || 'Undated'}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteNote(idx)}
+                      className="p-1 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                      title="Delete note"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="text-gray-700 whitespace-pre-wrap">{note.text}</div>
                 </div>
-              ) : (
-                <div className="text-gray-400 italic text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
-                  No notes yet. Click "Edit Notes" to add your thoughts about this recipe.
-                </div>
-              )}
+              ))}
+            </div>
+          ) : !addingNote && (
+            <div className="text-gray-400 italic text-center py-12 bg-gray-50 rounded-lg border border-gray-200">
+              No notes yet. Click "Add Note" to jot down your thoughts about this recipe.
             </div>
           )}
         </div>
