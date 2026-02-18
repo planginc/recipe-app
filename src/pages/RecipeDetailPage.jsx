@@ -84,7 +84,7 @@ function RecipeDetailPage() {
         tried_status: isTried,
         physical_location: selectedFolder,
         dietary_tags: dietaryTags,
-        your_notes: notesOverride || notes,
+        your_notes: Array.isArray(notesOverride) ? notesOverride : notes,
         image_url: imageUrl
       }
 
