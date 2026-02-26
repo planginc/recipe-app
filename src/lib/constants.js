@@ -21,6 +21,21 @@ export const FOLDER_OPTIONS = [
   'Folder 20 - Condiments & Preserves'
 ]
 
+export const CATEGORY_OPTIONS = [
+  { id: 'main course', label: 'Main Course' },
+  { id: 'side dish', label: 'Side Dish' },
+  { id: 'appetizer', label: 'Appetizer' },
+  { id: 'finger food', label: 'Finger Food' },
+  { id: 'snack', label: 'Snack' },
+  { id: 'dessert', label: 'Dessert' },
+  { id: 'breakfast', label: 'Breakfast' },
+  { id: 'soup', label: 'Soup' },
+  { id: 'salad', label: 'Salad' },
+  { id: 'sauce/dressing', label: 'Sauce / Dressing' },
+  { id: 'beverage', label: 'Beverage' },
+  { id: 'spice blend', label: 'Spice Blend' },
+]
+
 export const DIETARY_OPTIONS = [
   { id: 'keto', label: 'Keto-Friendly' },
   { id: 'low-carb', label: 'Low-Carb' },

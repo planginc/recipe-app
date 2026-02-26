@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabaseClient'
 import { Loader2 } from 'lucide-react'
 import RecipeCard from '../components/RecipeCard'
 import AIChat from '../components/AIChat'
+import CustomSelect from '../components/CustomSelect'
+import { CATEGORY_OPTIONS } from '../lib/constants'
 
 function HomePage() {
   const [recipes, setRecipes] = useState([])
@@ -14,6 +16,7 @@ function HomePage() {
   const [folderFilter, setFolderFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [dietaryFilter, setDietaryFilter] = useState('all')
+  const [categoryFilter, setCategoryFilter] = useState('all')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -22,7 +25,7 @@ function HomePage() {
 
   useEffect(() => {
     applyFilters()
-  }, [recipes, searchQuery, folderFilter, statusFilter, dietaryFilter])
+  }, [recipes, searchQuery, folderFilter, statusFilter, dietaryFilter, categoryFilter])
 
   async function fetchRecipes() {
     try {
@@ -46,6 +49,23 @@ function HomePage() {
   function applyFilters() {
     let filtered = [...recipes]
 
+    // Hide hidden recipes unless specifically viewing them
+    if (statusFilter === 'hidden') {
+      filtered = filtered.filter(recipe => {
+        const metadata = typeof recipe.metadata === 'string'
+          ? JSON.parse(recipe.metadata || '{}')
+          : (recipe.metadata || {})
+        return metadata.hidden === true
+      })
+    } else {
+      filtered = filtered.filter(recipe => {
+        const metadata = typeof recipe.metadata === 'string'
+          ? JSON.parse(recipe.metadata || '{}')
+          : (recipe.metadata || {})
+        return !metadata.hidden
+      })
+    }
+
     // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
@@ -65,20 +85,20 @@ function HomePage() {
     // Folder filter
     if (folderFilter !== 'all') {
       filtered = filtered.filter(recipe => {
-        const metadata = typeof recipe.metadata === 'string' 
-          ? JSON.parse(recipe.metadata || '{}') 
+        const metadata = typeof recipe.metadata === 'string'
+          ? JSON.parse(recipe.metadata || '{}')
           : (recipe.metadata || {})
         return metadata.physical_location === folderFilter
       })
     }
 
-    // Status filter
-    if (statusFilter !== 'all') {
+    // Status filter (tried/untried/stars — skip if 'hidden' since handled above)
+    if (statusFilter !== 'all' && statusFilter !== 'hidden') {
       filtered = filtered.filter(recipe => {
-        const metadata = typeof recipe.metadata === 'string' 
-          ? JSON.parse(recipe.metadata || '{}') 
+        const metadata = typeof recipe.metadata === 'string'
+          ? JSON.parse(recipe.metadata || '{}')
           : (recipe.metadata || {})
-        
+
         if (statusFilter === 'tried') {
           return metadata.tried_status === true
         } else if (statusFilter === 'untried') {
@@ -94,11 +114,22 @@ function HomePage() {
     // Dietary filter
     if (dietaryFilter !== 'all') {
       filtered = filtered.filter(recipe => {
-        const metadata = typeof recipe.metadata === 'string' 
-          ? JSON.parse(recipe.metadata || '{}') 
+        const metadata = typeof recipe.metadata === 'string'
+          ? JSON.parse(recipe.metadata || '{}')
           : (recipe.metadata || {})
         const dietaryTags = metadata.dietary_tags || []
         return dietaryTags.includes(dietaryFilter)
+      })
+    }
+
+    // Category filter — supports both array and string formats
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter(recipe => {
+        const metadata = typeof recipe.metadata === 'string'
+          ? JSON.parse(recipe.metadata || '{}')
+          : (recipe.metadata || {})
+        const cats = Array.isArray(metadata.category) ? metadata.category : (metadata.category ? [metadata.category] : [])
+        return cats.includes(categoryFilter)
       })
     }
 
@@ -107,19 +138,37 @@ function HomePage() {
 
   // Get unique folders for dropdown
   const folders = [...new Set(recipes.map(recipe => {
-    const metadata = typeof recipe.metadata === 'string' 
-      ? JSON.parse(recipe.metadata || '{}') 
+    const metadata = typeof recipe.metadata === 'string'
+      ? JSON.parse(recipe.metadata || '{}')
       : (recipe.metadata || {})
     return metadata.physical_location
+  }).filter(Boolean))].sort()
+
+  // Get unique categories for dropdown
+  const categories = [...new Set(recipes.map(recipe => {
+    const metadata = typeof recipe.metadata === 'string'
+      ? JSON.parse(recipe.metadata || '{}')
+      : (recipe.metadata || {})
+    return metadata.category
   }).filter(Boolean))].sort()
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
       <header className="bg-white shadow-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          <button
+            onClick={() => {
+              setSearchQuery('')
+              setFolderFilter('all')
+              setStatusFilter('all')
+              setDietaryFilter('all')
+              setCategoryFilter('all')
+              navigate('/')
+            }}
+            className="text-2xl font-bold text-gray-900 tracking-tight hover:text-blue-700 transition-colors cursor-pointer"
+          >
             🏠 My Recipes
-          </h1>
+          </button>
           <div className="flex gap-3">
             <button 
               onClick={() => navigate('/freezer')}
@@ -148,47 +197,59 @@ function HomePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
             />
-            <select 
+            <CustomSelect
               value={folderFilter}
-              onChange={(e) => setFolderFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg bg-white"
-            >
-              <option value="all">All Folders</option>
-              {folders.map(folder => (
-                <option key={folder} value={folder}>{folder}</option>
-              ))}
-            </select>
-            <select 
+              onChange={setFolderFilter}
+              placeholder="All Folders"
+              wideDropdown
+              options={[
+                { value: 'all', label: 'All Folders' },
+                ...folders.map(f => ({ value: f, label: f }))
+              ]}
+            />
+            <CustomSelect
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg bg-white"
-            >
-              <option value="all">All Status</option>
-              <option value="tried">Tried</option>
-              <option value="untried">Untried</option>
-              <option value="stars-5">5 Stars</option>
-              <option value="stars-4">4 Stars</option>
-              <option value="stars-3">3 Stars</option>
-              <option value="stars-2">2 Stars</option>
-              <option value="stars-1">1 Star</option>
-            </select>
+              onChange={setStatusFilter}
+              placeholder="All Status"
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'tried', label: 'Tried' },
+                { value: 'untried', label: 'Untried' },
+                { value: 'stars-5', label: '5 Stars' },
+                { value: 'stars-4', label: '4 Stars' },
+                { value: 'stars-3', label: '3 Stars' },
+                { value: 'stars-2', label: '2 Stars' },
+                { value: 'stars-1', label: '1 Star' },
+                { value: 'hidden', label: 'Hidden' },
+              ]}
+            />
           </div>
           <div className="flex flex-col sm:flex-row gap-4">
-            <select 
+            <CustomSelect
+              value={categoryFilter}
+              onChange={setCategoryFilter}
+              placeholder="All Categories"
+              options={[
+                { value: 'all', label: 'All Categories' },
+                ...CATEGORY_OPTIONS.map(opt => ({ value: opt.id, label: opt.label }))
+              ]}
+            />
+            <CustomSelect
               value={dietaryFilter}
-              onChange={(e) => setDietaryFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg bg-white"
-            >
-              <option value="all">All Dietary</option>
-              <option value="keto">Keto</option>
-              <option value="low-carb">Low-Carb</option>
-              <option value="paleo">Paleo</option>
-              <option value="whole30">Whole30</option>
-              <option value="gluten-free">Gluten-Free</option>
-              <option value="vegetarian">Vegetarian</option>
-              <option value="dairy-free">Dairy-Free</option>
-              <option value="high-protein">High-Protein</option>
-            </select>
+              onChange={setDietaryFilter}
+              placeholder="All Dietary"
+              options={[
+                { value: 'all', label: 'All Dietary' },
+                { value: 'keto', label: 'Keto' },
+                { value: 'low-carb', label: 'Low-Carb' },
+                { value: 'paleo', label: 'Paleo' },
+                { value: 'whole30', label: 'Whole30' },
+                { value: 'gluten-free', label: 'Gluten-Free' },
+                { value: 'vegetarian', label: 'Vegetarian' },
+                { value: 'dairy-free', label: 'Dairy-Free' },
+                { value: 'high-protein', label: 'High-Protein' },
+              ]}
+            />
           </div>
         </div>
 
@@ -219,7 +280,7 @@ function HomePage() {
                 key={recipe.id}
                 recipe={recipe}
                 onClick={() => navigate(`/recipe/${recipe.id}`)}
-                onDelete={(id) => setRecipes(prev => prev.filter(r => r.id !== id))}
+                onHide={(id) => setRecipes(prev => prev.filter(r => r.id !== id))}
               />
             ))}
           </div>

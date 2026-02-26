@@ -1,7 +1,7 @@
-import { Trash2 } from 'lucide-react'
+import { EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 
-function RecipeCard({ recipe, onClick, onDelete }) {
+function RecipeCard({ recipe, onClick, onHide }) {
   // Parse metadata if it's a string, otherwise use as is
   const metadata = typeof recipe.metadata === 'string'
     ? JSON.parse(recipe.metadata || '{}')
@@ -10,16 +10,20 @@ function RecipeCard({ recipe, onClick, onDelete }) {
   const imageUrl = metadata.image_url || 'https://images.unsplash.com/photo-1495521841615-2621ee960588?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
   const rating = metadata.rating || 0
   const isTried = metadata.tried_status
+  const categories = Array.isArray(metadata.category) ? metadata.category : (metadata.category ? [metadata.category] : [])
 
-  async function handleDelete(e) {
+  async function handleHide(e) {
     e.stopPropagation()
-    if (!confirm(`Delete "${recipe.title}"? This cannot be undone.`)) return
     try {
-      const { error } = await supabase.from('notes').delete().eq('id', recipe.id)
+      const currentMetadata = typeof recipe.metadata === 'string'
+        ? JSON.parse(recipe.metadata || '{}')
+        : (recipe.metadata || {})
+      const updatedMetadata = { ...currentMetadata, hidden: true }
+      const { error } = await supabase.from('notes').update({ metadata: updatedMetadata }).eq('id', recipe.id)
       if (error) throw error
-      if (onDelete) onDelete(recipe.id)
+      if (onHide) onHide(recipe.id)
     } catch (err) {
-      alert('Error deleting: ' + err.message)
+      alert('Error hiding: ' + err.message)
     }
   }
 
@@ -35,11 +39,11 @@ function RecipeCard({ recipe, onClick, onDelete }) {
           className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
         />
         <button
-          onClick={handleDelete}
-          className="absolute top-2 left-2 bg-red-600/90 hover:bg-red-700 text-white p-1.5 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
-          title="Delete recipe"
+          onClick={handleHide}
+          className="absolute top-2 left-2 bg-gray-700/90 hover:bg-gray-800 text-white p-1.5 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Hide from view"
         >
-          <Trash2 className="w-4 h-4" />
+          <EyeOff className="w-4 h-4" />
         </button>
         <div className="absolute top-2 right-2">
           {isTried ? (
@@ -55,6 +59,15 @@ function RecipeCard({ recipe, onClick, onDelete }) {
       </div>
 
       <div className="p-4 flex flex-col flex-1">
+        {categories.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {categories.map(cat => (
+              <span key={cat} className="inline-block text-xs font-semibold text-orange-700 bg-orange-100 px-2.5 py-0.5 rounded-full border border-orange-200 capitalize">
+                {cat}
+              </span>
+            ))}
+          </div>
+        )}
         <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight">
           {recipe.title}
         </h3>

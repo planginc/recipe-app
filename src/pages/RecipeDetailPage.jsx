@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
-import { ArrowLeft, Loader2, ExternalLink, Save, Trash2, Plus, X } from 'lucide-react'
-import { FOLDER_OPTIONS, DIETARY_OPTIONS } from '../lib/constants'
+import { ArrowLeft, Loader2, ExternalLink, Save, EyeOff, Eye, Plus, X } from 'lucide-react'
+import { FOLDER_OPTIONS, DIETARY_OPTIONS, CATEGORY_OPTIONS } from '../lib/constants'
 
 function RecipeDetailPage() {
   const { id } = useParams()
@@ -23,6 +23,8 @@ function RecipeDetailPage() {
   const [imageUrl, setImageUrl] = useState('')
   const [editingImage, setEditingImage] = useState(false)
   const [autoTagging, setAutoTagging] = useState(false)
+  const [category, setCategory] = useState([])
+  const [isHidden, setIsHidden] = useState(false)
 
   useEffect(() => {
     fetchRecipe()
@@ -51,6 +53,9 @@ function RecipeDetailPage() {
       setIsTried(metadata.tried_status || false)
       setSelectedFolder(metadata.physical_location || '')
       setDietaryTags(metadata.dietary_tags || [])
+      const rawCat = metadata.category
+      setCategory(Array.isArray(rawCat) ? rawCat : (rawCat ? [rawCat] : []))
+      setIsHidden(metadata.hidden || false)
       setImageUrl(metadata.image_url || '')
 
       // Parse notes — migrate from old string format to dated entries
@@ -84,6 +89,8 @@ function RecipeDetailPage() {
         tried_status: isTried,
         physical_location: selectedFolder,
         dietary_tags: dietaryTags,
+        category: category.length > 0 ? category : undefined,
+        hidden: isHidden,
         your_notes: Array.isArray(notesOverride) ? notesOverride : notes,
         image_url: imageUrl
       }
@@ -107,23 +114,23 @@ function RecipeDetailPage() {
     }
   }
 
-  async function handleDelete() {
-    if (!confirm('Are you sure you want to delete this recipe? This cannot be undone.')) {
-      return
-    }
-
+  async function handleToggleHide() {
+    const newHidden = !isHidden
     try {
+      const currentMetadata = typeof recipe.metadata === 'string'
+        ? JSON.parse(recipe.metadata || '{}')
+        : (recipe.metadata || {})
+      const updatedMetadata = { ...currentMetadata, hidden: newHidden }
       const { error } = await supabase
         .from('notes')
-        .delete()
+        .update({ metadata: updatedMetadata })
         .eq('id', id)
-
       if (error) throw error
-      
-      navigate('/')
+      setIsHidden(newHidden)
+      setRecipe({ ...recipe, metadata: updatedMetadata })
+      alert(newHidden ? 'Recipe hidden from view.' : 'Recipe is now visible.')
     } catch (err) {
-      console.error('Error deleting recipe:', err)
-      alert('Error deleting recipe: ' + err.message)
+      alert('Error: ' + err.message)
     }
   }
 
@@ -247,12 +254,16 @@ function RecipeDetailPage() {
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'Saving...' : 'Save Changes'}
             </button>
-            <button 
-              onClick={handleDelete}
-              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+            <button
+              onClick={handleToggleHide}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isHidden
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-gray-600 text-white hover:bg-gray-700'
+              }`}
             >
-              <Trash2 className="w-4 h-4" />
-              Delete
+              {isHidden ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              {isHidden ? 'Unhide' : 'Hide'}
             </button>
           </div>
         </div>
@@ -329,7 +340,33 @@ function RecipeDetailPage() {
         {/* Recipe Details */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">{recipe.title}</h1>
-          
+
+          {/* Category */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Category
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORY_OPTIONS.map(option => (
+                <button
+                  key={option.id}
+                  onClick={() => setCategory(prev =>
+                    prev.includes(option.id)
+                      ? prev.filter(c => c !== option.id)
+                      : [...prev, option.id]
+                  )}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+                    category.includes(option.id)
+                      ? 'bg-orange-600 text-white border-orange-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-orange-400 hover:text-orange-700'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Source URL */}
           {sourceUrl && (
             <a 
@@ -401,7 +438,7 @@ function RecipeDetailPage() {
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
-                  onClick={() => setRating(star)}
+                  onClick={() => { setRating(star); setIsTried(true) }}
                   className={`text-4xl transition-all transform hover:scale-110 ${
                     star <= rating ? 'text-yellow-400' : 'text-gray-300'
                   } hover:text-yellow-400`}
