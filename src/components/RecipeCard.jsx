@@ -1,4 +1,7 @@
-function RecipeCard({ recipe, onClick }) {
+import { Trash2 } from 'lucide-react'
+import { supabase } from '../lib/supabaseClient'
+
+function RecipeCard({ recipe, onClick, onDelete }) {
   // Parse metadata if it's a string, otherwise use as is
   const metadata = typeof recipe.metadata === 'string'
     ? JSON.parse(recipe.metadata || '{}')
@@ -8,10 +11,22 @@ function RecipeCard({ recipe, onClick }) {
   const rating = metadata.rating || 0
   const isTried = metadata.tried_status
 
+  async function handleDelete(e) {
+    e.stopPropagation()
+    if (!confirm(`Delete "${recipe.title}"? This cannot be undone.`)) return
+    try {
+      const { error } = await supabase.from('notes').delete().eq('id', recipe.id)
+      if (error) throw error
+      if (onDelete) onDelete(recipe.id)
+    } catch (err) {
+      alert('Error deleting: ' + err.message)
+    }
+  }
+
   return (
-    <div 
+    <div
       onClick={onClick}
-      className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden border border-gray-100 flex flex-col h-full group cursor-pointer"
+      className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden border border-gray-100 flex flex-col h-full group cursor-pointer relative"
     >
       <div className="relative h-48 overflow-hidden bg-gray-200">
         <img
@@ -19,6 +34,13 @@ function RecipeCard({ recipe, onClick }) {
           alt={recipe.title}
           className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
         />
+        <button
+          onClick={handleDelete}
+          className="absolute top-2 left-2 bg-red-600/90 hover:bg-red-700 text-white p-1.5 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Delete recipe"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
         <div className="absolute top-2 right-2">
           {isTried ? (
             <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded-full border border-green-200 shadow-sm">
