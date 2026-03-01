@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
-import { ArrowLeft, Loader2, Plus, Edit2, Trash2, ExternalLink, ChefHat, X } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, Edit2, Trash2, ExternalLink, ChefHat, X, Camera } from 'lucide-react'
+import StepCaptureModal from '../components/StepCaptureModal'
 
 const USER_ID = '6285585111'
 
@@ -35,6 +36,7 @@ function InspirationPage() {
   const [showForm, setShowForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
   const [expandedItem, setExpandedItem] = useState(null)
+  const [stepCaptureItem, setStepCaptureItem] = useState(null)
 
   const [formData, setFormData] = useState({
     url: '',
@@ -433,6 +435,11 @@ function InspirationPage() {
                         Promoted
                       </div>
                     )}
+                    {item.steps && item.steps.length > 0 && (
+                      <div className="absolute top-2 left-2 bg-violet-600 text-white text-xs px-2 py-1 rounded-full font-medium">
+                        {item.steps.length} steps
+                      </div>
+                    )}
                   </div>
 
                   {/* Info */}
@@ -477,6 +484,13 @@ function InspirationPage() {
                             Watch
                           </a>
                           <button
+                            onClick={() => setStepCaptureItem(item)}
+                            className="flex items-center gap-1 text-xs bg-violet-50 text-violet-600 px-3 py-1.5 rounded-lg hover:bg-violet-100 transition-colors"
+                          >
+                            <Camera className="w-3 h-3" />
+                            {item.steps?.length ? `${item.steps.length} Steps` : 'Capture Steps'}
+                          </button>
+                          <button
                             onClick={() => startEdit(item)}
                             className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
                           >
@@ -509,6 +523,21 @@ function InspirationPage() {
           </div>
         )}
       </main>
+
+      {/* Step Capture Modal */}
+      {stepCaptureItem && (
+        <StepCaptureModal
+          item={stepCaptureItem}
+          onClose={() => {
+            setStepCaptureItem(null)
+            fetchItems()
+          }}
+          onStepsSaved={(steps) => {
+            setStepCaptureItem(null)
+            fetchItems()
+          }}
+        />
+      )}
     </div>
   )
 }
