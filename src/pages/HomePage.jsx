@@ -170,13 +170,19 @@ function HomePage() {
             🏠 My Recipes
           </button>
           <div className="flex gap-3">
-            <button 
+            <button
+              onClick={() => navigate('/inspiration')}
+              className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700 transition-colors"
+            >
+              💡 Inspiration
+            </button>
+            <button
               onClick={() => navigate('/freezer')}
               className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors"
             >
               🧊 Manage Freezer
             </button>
-            <button 
+            <button
               onClick={() => navigate('/bulk-import')}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
             >
