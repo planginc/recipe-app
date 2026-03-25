@@ -1,17 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
 import { Loader2 } from 'lucide-react'
 import RecipeCard from '../components/RecipeCard'
 import AIChat from '../components/AIChat'
 import CustomSelect from '../components/CustomSelect'
 import { CATEGORY_OPTIONS } from '../lib/constants'
+import { useRecipes } from '../hooks/useRecipes'
 
 function HomePage() {
-  const [recipes, setRecipes] = useState([])
-  const [filteredRecipes, setFilteredRecipes] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const { data: recipes, loading, error, refetch, updateRecipe } = useRecipes()
   const [searchQuery, setSearchQuery] = useState('')
   const [folderFilter, setFolderFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -19,37 +16,9 @@ function HomePage() {
   const [categoryFilter, setCategoryFilter] = useState('all')
   const navigate = useNavigate()
 
-  useEffect(() => {
-    fetchRecipes()
-  }, [])
-
-  useEffect(() => {
-    applyFilters()
-  }, [recipes, searchQuery, folderFilter, statusFilter, dietaryFilter, categoryFilter])
-
-  async function fetchRecipes() {
-    try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('notes')
-        .select('*')
-        .eq('note_type', 'recipe')
-        .order('id', { ascending: false })
-
-      if (error) throw error
-      setRecipes(data || [])
-    } catch (err) {
-      console.error('Error fetching recipes:', err)
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function applyFilters() {
+  const filteredRecipes = useMemo(() => {
     let filtered = [...recipes]
 
-    // Hide hidden recipes unless specifically viewing them
     if (statusFilter === 'hidden') {
       filtered = filtered.filter(recipe => {
         const metadata = typeof recipe.metadata === 'string'
@@ -66,7 +35,6 @@ function HomePage() {
       })
     }
 
-    // Search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase()
       filtered = filtered.filter(recipe => {
@@ -77,12 +45,14 @@ function HomePage() {
           : (recipe.metadata || {})
         const tags = (metadata.dietary_tags || []).join(' ').toLowerCase()
         const folder = (metadata.physical_location || '').toLowerCase()
-        const notes = (metadata.your_notes || '').toLowerCase()
+        const yourNotes = metadata.your_notes
+        const notes = Array.isArray(yourNotes)
+          ? yourNotes.map(n => n.text || '').join(' ').toLowerCase()
+          : (yourNotes || '').toLowerCase()
         return title.includes(query) || content.includes(query) || tags.includes(query) || folder.includes(query) || notes.includes(query)
       })
     }
 
-    // Folder filter
     if (folderFilter !== 'all') {
       filtered = filtered.filter(recipe => {
         const metadata = typeof recipe.metadata === 'string'
@@ -92,18 +62,14 @@ function HomePage() {
       })
     }
 
-    // Status filter (tried/untried/stars — skip if 'hidden' since handled above)
     if (statusFilter !== 'all' && statusFilter !== 'hidden') {
       filtered = filtered.filter(recipe => {
         const metadata = typeof recipe.metadata === 'string'
           ? JSON.parse(recipe.metadata || '{}')
           : (recipe.metadata || {})
-
-        if (statusFilter === 'tried') {
-          return metadata.tried_status === true
-        } else if (statusFilter === 'untried') {
-          return !metadata.tried_status
-        } else if (statusFilter.startsWith('stars-')) {
+        if (statusFilter === 'tried') return metadata.tried_status === true
+        if (statusFilter === 'untried') return !metadata.tried_status
+        if (statusFilter.startsWith('stars-')) {
           const stars = parseInt(statusFilter.split('-')[1])
           return metadata.rating === stars
         }
@@ -111,18 +77,15 @@ function HomePage() {
       })
     }
 
-    // Dietary filter
     if (dietaryFilter !== 'all') {
       filtered = filtered.filter(recipe => {
         const metadata = typeof recipe.metadata === 'string'
           ? JSON.parse(recipe.metadata || '{}')
           : (recipe.metadata || {})
-        const dietaryTags = metadata.dietary_tags || []
-        return dietaryTags.includes(dietaryFilter)
+        return (metadata.dietary_tags || []).includes(dietaryFilter)
       })
     }
 
-    // Category filter — supports both array and string formats
     if (categoryFilter !== 'all') {
       filtered = filtered.filter(recipe => {
         const metadata = typeof recipe.metadata === 'string'
@@ -133,23 +96,14 @@ function HomePage() {
       })
     }
 
-    setFilteredRecipes(filtered)
-  }
+    return filtered
+  }, [recipes, searchQuery, folderFilter, statusFilter, dietaryFilter, categoryFilter])
 
-  // Get unique folders for dropdown
   const folders = [...new Set(recipes.map(recipe => {
     const metadata = typeof recipe.metadata === 'string'
       ? JSON.parse(recipe.metadata || '{}')
       : (recipe.metadata || {})
     return metadata.physical_location
-  }).filter(Boolean))].sort()
-
-  // Get unique categories for dropdown
-  const categories = [...new Set(recipes.map(recipe => {
-    const metadata = typeof recipe.metadata === 'string'
-      ? JSON.parse(recipe.metadata || '{}')
-      : (recipe.metadata || {})
-    return metadata.category
   }).filter(Boolean))].sort()
 
   return (
@@ -193,7 +147,6 @@ function HomePage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Search & Filter */}
         <div className="bg-white p-4 rounded-xl shadow-sm mb-8 border border-gray-100">
           <div className="flex flex-col sm:flex-row gap-4 mb-4">
             <input
@@ -259,14 +212,12 @@ function HomePage() {
           </div>
         </div>
 
-        {/* Results count */}
         {!loading && !error && (
           <div className="text-sm text-gray-600 mb-4">
             Showing {filteredRecipes.length} of {recipes.length} recipes
           </div>
         )}
 
-        {/* Content Area */}
         {loading ? (
           <div className="flex justify-center items-center h-64">
             <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
@@ -277,7 +228,7 @@ function HomePage() {
           </div>
         ) : filteredRecipes.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
-            {recipes.length === 0 ? 'No recipes found. Try adding some!' : 'No recipes match your filters.'}
+            {recipes.length === 0 ? 'No recipes yet. Try adding some!' : 'No recipes match your filters.'}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -286,14 +237,13 @@ function HomePage() {
                 key={recipe.id}
                 recipe={recipe}
                 onClick={() => navigate(`/recipe/${recipe.id}`)}
-                onHide={(id) => setRecipes(prev => prev.filter(r => r.id !== id))}
+                onHide={(id) => updateRecipe(id, { metadata: { ...(recipe.metadata || {}), hidden: true } })}
               />
             ))}
           </div>
         )}
       </main>
-      
-      {/* AI Chat Assistant */}
+
       <AIChat />
     </div>
   )

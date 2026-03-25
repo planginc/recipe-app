@@ -1,0 +1,5 @@
+export const BACKEND = import.meta.env.VITE_DB_BACKEND || 'supabase'
+export const USER_TELEGRAM_ID = import.meta.env.VITE_USER_TELEGRAM_ID || ''
+export const AI_CHAT_URL = import.meta.env.VITE_AI_CHAT_URL || ''
+export const AUTO_TAG_URL = import.meta.env.VITE_AUTO_TAG_URL || ''
+export const CONVEX_URL = import.meta.env.VITE_CONVEX_URL || ''

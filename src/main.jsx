@@ -4,10 +4,26 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </StrictMode>,
-)
+const BACKEND = import.meta.env.VITE_DB_BACKEND || 'supabase'
+
+async function init() {
+  let Wrapper = ({ children }) => children
+
+  if (BACKEND === 'convex') {
+    const { ConvexProvider, ConvexReactClient } = await import('convex/react')
+    const client = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL)
+    Wrapper = ({ children }) => <ConvexProvider client={client}>{children}</ConvexProvider>
+  }
+
+  createRoot(document.getElementById('root')).render(
+    <StrictMode>
+      <BrowserRouter>
+        <Wrapper>
+          <App />
+        </Wrapper>
+      </BrowserRouter>
+    </StrictMode>,
+  )
+}
+
+init()

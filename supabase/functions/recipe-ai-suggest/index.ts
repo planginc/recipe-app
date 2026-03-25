@@ -7,13 +7,12 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const { query } = await req.json()
+    const { query, history = [] } = await req.json()
 
     if (!query) {
       return new Response(
@@ -22,14 +21,12 @@ serve(async (req) => {
       )
     }
 
-    // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!
     const supabase = createClient(supabaseUrl, supabaseKey)
 
     const userId = '6285585111'
 
-    // Fetch recipes
     const { data: recipes, error: recipesError } = await supabase
       .from('notes')
       .select('id, title, content, metadata')
@@ -37,7 +34,6 @@ serve(async (req) => {
 
     if (recipesError) throw recipesError
 
-    // Fetch freezer inventory
     const { data: freezerItems, error: freezerError } = await supabase
       .from('freezer_inventory')
       .select('*')
@@ -45,13 +41,11 @@ serve(async (req) => {
 
     if (freezerError) throw freezerError
 
-    // Parse recipe metadata and build context
     const recipeContext = recipes.map(recipe => {
-      const metadata = typeof recipe.metadata === 'string' 
+      const metadata = typeof recipe.metadata === 'string'
         ? JSON.parse(recipe.metadata || '{}')
         : (recipe.metadata || {})
-      
-      // Support both old string notes and new dated array format
+
       const rawNotes = metadata.your_notes
       let notesText = ''
       if (Array.isArray(rawNotes)) {
@@ -77,7 +71,7 @@ serve(async (req) => {
       unit: item.unit
     }))
 
-    // Build Claude prompt
+    // Recipe and freezer data lives in the system prompt so it's available across all turns
     const systemPrompt = `You are a personal recipe assistant for Pam. She has executive function challenges around food decisions, so your job is to cut through overwhelm and give her 2-3 specific, confident recommendations — not a list of 10 options.
 
 When recommending, always mention:
@@ -89,7 +83,9 @@ When recommending, always mention:
 
 Be warm, direct, and decisive. She wants "make THIS tonight" energy, not "here are some options to consider."
 
-Format your response as JSON with this structure:
+For follow-up questions in a conversation, use the context of what was already discussed — if she asks "why did I rate that one 4 stars instead of 5?" she means the recipe just recommended.
+
+Always respond with JSON in this exact format:
 {
   "message": "Your friendly conversational response",
   "recommendations": [
@@ -99,23 +95,30 @@ Format your response as JSON with this structure:
       "reason": "Why this recipe matches her request"
     }
   ]
-}`
+}
 
-    const userPrompt = `Current request: "${query}"
+If no recipe recommendations apply (e.g. a follow-up question about a specific recipe), return an empty recommendations array.
 
 Available recipes:
 ${JSON.stringify(recipeContext, null, 2)}
 
 Current freezer inventory:
-${JSON.stringify(freezerContext, null, 2)}
+${JSON.stringify(freezerContext, null, 2)}`
 
-Based on this information, recommend 2-3 recipes that best match what Pam is looking for.`
+    // Build multi-turn messages: history + current query
+    const messages = [
+      ...history.map((m: { role: string; content: string }) => ({
+        role: m.role,
+        content: m.content
+      })),
+      {
+        role: 'user',
+        content: query
+      }
+    ]
 
-    // Call Anthropic API
     const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')
-    if (!anthropicKey) {
-      throw new Error('ANTHROPIC_API_KEY not configured')
-    }
+    if (!anthropicKey) throw new Error('ANTHROPIC_API_KEY not configured')
 
     const anthropicResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -128,12 +131,7 @@ Based on this information, recommend 2-3 recipes that best match what Pam is loo
         model: 'claude-sonnet-4-20250514',
         max_tokens: 1024,
         system: systemPrompt,
-        messages: [
-          {
-            role: 'user',
-            content: userPrompt
-          }
-        ]
+        messages
       })
     })
 
@@ -145,12 +143,10 @@ Based on this information, recommend 2-3 recipes that best match what Pam is loo
     const anthropicData = await anthropicResponse.json()
     const responseText = anthropicData.content[0].text
 
-    // Parse Claude's JSON response
     let parsedResponse
     try {
       parsedResponse = JSON.parse(responseText)
     } catch {
-      // Claude sometimes wraps JSON in markdown — extract the object
       const match = responseText.match(/\{[\s\S]*\}/)
       if (match) {
         try {
