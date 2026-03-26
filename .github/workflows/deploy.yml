@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 jobs:
-  deploy-convex:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -13,6 +13,11 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
-      - run: npx convex deploy --cmd 'npm run build'
+      - run: npm run build
         env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
+          VITE_CONVEX_SITE_URL: ${{ secrets.VITE_CONVEX_SITE_URL }}
+          VITE_AI_CHAT_URL: ${{ secrets.VITE_AI_CHAT_URL }}
+          VITE_AUTO_TAG_URL: ${{ secrets.VITE_AUTO_TAG_URL }}
+          VITE_DB_BACKEND: convex
+          VITE_USER_TELEGRAM_ID: ${{ secrets.VITE_USER_TELEGRAM_ID }}
