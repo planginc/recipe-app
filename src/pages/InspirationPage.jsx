@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2, Plus, Edit2, Trash2, ExternalLink, ChefHat, X, Camera } from 'lucide-react'
 import StepCaptureModal from '../components/StepCaptureModal'
 import { useInspirationVideos } from '../hooks/useInspirationVideos'
+import { useToast } from '../hooks/useToast'
 
 function extractYouTubeId(url) {
   if (!url) return null
@@ -23,6 +24,7 @@ function getThumbnailUrl(url) {
 
 function InspirationPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const { data: items, loading, error, refetch, createVideo, updateVideo, deleteVideo, promoteToRecipe } = useInspirationVideos()
   const [searchQuery, setSearchQuery] = useState('')
   const [showForm, setShowForm] = useState(false)
@@ -59,7 +61,7 @@ function InspirationPage() {
       }
       resetForm()
     } catch (err) {
-      alert('Error saving: ' + err.message)
+      toast('Error saving: ' + err.message, 'error')
     }
   }
 
@@ -69,7 +71,7 @@ function InspirationPage() {
       await deleteVideo(id)
       setExpandedItem(null)
     } catch (err) {
-      alert('Error deleting: ' + err.message)
+      toast('Error deleting: ' + err.message, 'error')
     }
   }
 
@@ -90,9 +92,9 @@ function InspirationPage() {
         },
         tags: item.tags || [],
       })
-      alert('Recipe created! Head to My Recipes to fill in the details.')
+      toast('Recipe created! Head to My Recipes to fill in the details.', 'success')
     } catch (err) {
-      alert('Error promoting to recipe: ' + err.message)
+      toast('Error promoting to recipe: ' + err.message, 'error')
     }
   }
 

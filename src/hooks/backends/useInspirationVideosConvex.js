@@ -60,7 +60,7 @@ export function useInspirationVideos() {
     return { id, ...recipeData }
   }
 
-  async function uploadStepImage(blob, _itemId, _stepIndex) {
+  async function uploadStepImage(blob) {
     const uploadUrl = await generateUploadUrlMutation({})
     const result = await fetch(uploadUrl, {
       method: 'POST',

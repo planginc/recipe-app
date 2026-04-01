@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2, Plus, Edit2, Trash2, AlertCircle } from 'lucide-react'
 import { useFreezerItems } from '../hooks/useFreezerItems'
+import { useToast } from '../hooks/useToast'
 
 function FreezerInventoryPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const { data: items, loading, error, createItem, updateItem, deleteItem } = useFreezerItems()
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingItem, setEditingItem] = useState(null)
@@ -32,7 +34,7 @@ function FreezerInventoryPage() {
       }
       resetForm()
     } catch (err) {
-      alert('Error saving item: ' + err.message)
+      toast('Error saving item: ' + err.message, 'error')
     }
   }
 
@@ -41,7 +43,7 @@ function FreezerInventoryPage() {
     try {
       await deleteItem(id)
     } catch (err) {
-      alert('Error deleting item: ' + err.message)
+      toast('Error deleting item: ' + err.message, 'error')
     }
   }
 

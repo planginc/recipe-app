@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { FOLDER_OPTIONS } from '../lib/constants'
 import { useRecipes } from '../hooks/useRecipes'
+import { useToast } from '../hooks/useToast'
 
 function BulkImportPage() {
   const navigate = useNavigate()
+  const toast = useToast()
   const { createRecipe } = useRecipes()
   const [urls, setUrls] = useState('')
   const [importing, setImporting] = useState(false)
@@ -15,7 +17,7 @@ function BulkImportPage() {
   async function handleImport() {
     const urlList = urls.split('\n').filter(url => url.trim())
     if (urlList.length === 0) {
-      alert('Please paste at least one recipe URL')
+      toast('Please paste at least one recipe URL', 'info')
       return
     }
 
@@ -71,7 +73,7 @@ function BulkImportPage() {
 
     setImporting(false)
     const successCount = importResults.filter(r => r.success).length
-    alert(`Import complete!\n${successCount} of ${urlList.length} recipes imported successfully.`)
+    toast(`Import complete! ${successCount} of ${urlList.length} recipes imported.`, successCount > 0 ? 'success' : 'error')
   }
 
   return (

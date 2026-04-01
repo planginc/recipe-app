@@ -1,9 +1,8 @@
 import { EyeOff } from 'lucide-react'
+import { parseMetadata } from '../lib/parseMetadata'
 
 function RecipeCard({ recipe, onClick, onHide }) {
-  const metadata = typeof recipe.metadata === 'string'
-    ? JSON.parse(recipe.metadata || '{}')
-    : (recipe.metadata || {})
+  const metadata = recipe._meta || parseMetadata(recipe)
 
   const imageUrl = metadata.image_url || 'https://images.unsplash.com/photo-1495521841615-2621ee960588?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
   const rating = metadata.rating || 0
@@ -21,8 +20,8 @@ function RecipeCard({ recipe, onClick, onHide }) {
       className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden border border-gray-100 flex flex-col h-full group cursor-pointer relative"
     >
       <div className="relative h-48 overflow-hidden bg-gray-200">
-        <img src={imageUrl} alt={recipe.title} className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
-        <button onClick={handleHide} className="absolute top-2 left-2 bg-gray-700/90 hover:bg-gray-800 text-white p-1.5 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" title="Hide from view">
+        <img src={imageUrl} alt={recipe.title} loading="lazy" className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500" />
+        <button onClick={handleHide} className="absolute top-2 left-2 bg-gray-700/90 hover:bg-gray-800 text-white p-1.5 rounded-lg shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" title="Hide from view" aria-label="Hide recipe">
           <EyeOff className="w-4 h-4" />
         </button>
         <div className="absolute top-2 right-2">

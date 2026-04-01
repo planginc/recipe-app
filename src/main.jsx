@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
+import { ToastProvider } from './components/Toast.jsx'
 
 const BACKEND = import.meta.env.VITE_DB_BACKEND || 'supabase'
 
@@ -19,7 +20,9 @@ async function init() {
     <StrictMode>
       <BrowserRouter>
         <Wrapper>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </Wrapper>
       </BrowserRouter>
     </StrictMode>,

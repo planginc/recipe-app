@@ -25,6 +25,19 @@ function AIChat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
+  // Escape key to close
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape' && isOpen) {
+        setIsOpen(false)
+        setMessages([])
+        setError(null)
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen])
+
   useEffect(() => {
     const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
     if (!isIOS && ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
@@ -60,7 +73,7 @@ function AIChat() {
       recognitionRef.current.onend = () => {
         setInterimText('')
         if (isListeningRef.current) {
-          try { recognitionRef.current.start() } catch (_) {}
+          try { recognitionRef.current.start() } catch { /* already started */ }
         } else {
           setIsListening(false)
         }
@@ -85,7 +98,7 @@ function AIChat() {
     } else {
       isListeningRef.current = true
       setIsListening(true)
-      try { recognitionRef.current.start() } catch (_) {}
+      try { recognitionRef.current.start() } catch { /* already started */ }
     }
   }
 
@@ -101,7 +114,7 @@ function AIChat() {
       isListeningRef.current = false
       setIsListening(false)
       setInterimText('')
-      try { recognitionRef.current?.stop() } catch (_) {}
+      try { recognitionRef.current?.stop() } catch { /* not listening */ }
     }
 
     const query = textareaRef.current?.value?.trim() || ''
@@ -129,7 +142,7 @@ function AIChat() {
 
       if (!res.ok) {
         let message = 'Failed to get recommendations'
-        try { const d = await res.json(); message = d.error || message } catch (_) {}
+        try { const d = await res.json(); message = d.error || message } catch { /* non-JSON response */ }
         throw new Error(message)
       }
 
@@ -148,6 +161,7 @@ function AIChat() {
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-110 z-50"
         title="Ask AI for recipe suggestions"
+        aria-label="Open AI recipe assistant"
       >
         <MessageCircle className="w-6 h-6" />
       </button>
@@ -155,13 +169,13 @@ function AIChat() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-96 bg-white rounded-2xl shadow-2xl z-50 flex flex-col max-h-[600px]">
+    <div className="fixed bottom-6 right-6 w-96 max-w-[calc(100vw-3rem)] bg-white rounded-2xl shadow-2xl z-50 flex flex-col max-h-[600px]">
       <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-4 rounded-t-2xl flex items-center justify-between">
         <div className="flex items-center gap-2">
           <MessageCircle className="w-5 h-5" />
           <h3 className="font-bold">Recipe Assistant</h3>
         </div>
-        <button onClick={() => { setIsOpen(false); setMessages([]); setError(null) }} className="hover:bg-white/20 p-1 rounded-lg transition-colors">
+        <button onClick={() => { setIsOpen(false); setMessages([]); setError(null) }} className="hover:bg-white/20 p-1 rounded-lg transition-colors" aria-label="Close chat">
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -234,11 +248,11 @@ function AIChat() {
             spellCheck={true}
           />
           {micAvailable && (
-            <button type="button" onClick={toggleListening} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${isListening ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`} title={isListening ? 'Stop listening' : 'Use voice input'}>
+            <button type="button" onClick={toggleListening} className={`p-2 rounded-lg transition-colors flex-shrink-0 ${isListening ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`} title={isListening ? 'Stop listening' : 'Use voice input'} aria-label={isListening ? 'Stop listening' : 'Use voice input'}>
               {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
           )}
-          <button type="submit" disabled={loading} className="bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0">
+          <button type="submit" disabled={loading} className="bg-purple-600 text-white p-2 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0" aria-label="Send message">
             <Send className="w-5 h-5" />
           </button>
         </div>

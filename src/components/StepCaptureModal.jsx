@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
-import { X, Plus, Trash2, GripVertical, Clipboard, Sparkles, Loader2, ImageIcon } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { X, Trash2, GripVertical, Clipboard, Sparkles, Loader2, ImageIcon } from 'lucide-react'
 import { useInspirationVideos } from '../hooks/useInspirationVideos'
+import { useToast } from '../hooks/useToast'
 
 function StepCaptureModal({ item, onClose, onStepsSaved }) {
   const { updateVideo, uploadStepImage, promoteToRecipe } = useInspirationVideos()
+  const toast = useToast()
   const [steps, setSteps] = useState(item.steps || [])
   const [saving, setSaving] = useState(false)
   const [polishing, setPolishing] = useState(false)
@@ -11,6 +13,19 @@ function StepCaptureModal({ item, onClose, onStepsSaved }) {
   const [uploadingStep, setUploadingStep] = useState(null)
   const pasteZoneRef = useRef(null)
   const fileInputRef = useRef(null)
+
+  const handleImageUpload = useCallback(async (blob) => {
+    const stepIndex = steps.length
+    setUploadingStep(stepIndex)
+    try {
+      const publicUrl = await uploadStepImage(blob, item.id, stepIndex)
+      setSteps(prev => [...prev, { image_url: publicUrl, narration: '', order: prev.length + 1 }])
+    } catch (err) {
+      toast('Failed to upload image: ' + err.message, 'error')
+    } finally {
+      setUploadingStep(null)
+    }
+  }, [steps.length, uploadStepImage, item.id, toast])
 
   useEffect(() => {
     function handlePaste(e) {
@@ -27,20 +42,16 @@ function StepCaptureModal({ item, onClose, onStepsSaved }) {
     }
     document.addEventListener('paste', handlePaste)
     return () => document.removeEventListener('paste', handlePaste)
-  }, [steps])
+  }, [handleImageUpload])
 
-  async function handleImageUpload(blob) {
-    const stepIndex = steps.length
-    setUploadingStep(stepIndex)
-    try {
-      const publicUrl = await uploadStepImage(blob, item.id, stepIndex)
-      setSteps(prev => [...prev, { image_url: publicUrl, narration: '', order: prev.length + 1 }])
-    } catch (err) {
-      alert('Failed to upload image: ' + err.message)
-    } finally {
-      setUploadingStep(null)
+  // Escape key to close
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') onClose()
     }
-  }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   function handleFileSelect(e) {
     const file = e.target.files?.[0]
@@ -72,16 +83,16 @@ function StepCaptureModal({ item, onClose, onStepsSaved }) {
       await updateVideo(item.id, { steps })
       onStepsSaved(steps)
     } catch (err) {
-      alert('Failed to save steps: ' + err.message)
+      toast('Failed to save steps: ' + err.message, 'error')
     } finally {
       setSaving(false)
     }
   }
 
   async function handleAIPolish() {
-    if (steps.length === 0) { alert('Add some steps first!'); return }
+    if (steps.length === 0) { toast('Add some steps first!', 'info'); return }
     const stepsWithNarration = steps.filter(s => s.narration.trim())
-    if (stepsWithNarration.length === 0) { alert('Add narration to at least one step so AI has something to work with.'); return }
+    if (stepsWithNarration.length === 0) { toast('Add narration to at least one step so AI has something to work with.', 'info'); return }
 
     setPolishing(true)
     try {
@@ -110,7 +121,7 @@ Format it cleanly. If you're unsure about exact quantities, give reasonable esti
       })
       if (error) throw error
       setPolishedRecipe(data.recipe || 'No recipe generated')
-    } catch (err) {
+    } catch {
       const fallback = steps.filter(s => s.narration).map((s, i) => `${i + 1}. ${s.narration}`).join('\n')
       setPolishedRecipe(`**Directions (from your notes):**\n\n${fallback}\n\n(AI polish unavailable. These are your raw narrations.)`)
     } finally {
@@ -137,10 +148,10 @@ Format it cleanly. If you're unsure about exact quantities, give reasonable esti
         },
         tags: item.tags || [],
       })
-      alert('Recipe created! Head to My Recipes to see it.')
+      toast('Recipe created! Head to My Recipes to see it.', 'success')
       onClose()
     } catch (err) {
-      alert('Error creating recipe: ' + err.message)
+      toast('Error creating recipe: ' + err.message, 'error')
     }
   }
 
@@ -152,7 +163,7 @@ Format it cleanly. If you're unsure about exact quantities, give reasonable esti
             <h2 className="text-xl font-bold text-gray-900">Capture Steps</h2>
             <p className="text-sm text-gray-500 mt-1">{item.title}</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close"><X className="w-6 h-6" /></button>
         </div>
 
         <div className="p-6 space-y-6">
@@ -186,7 +197,7 @@ Format it cleanly. If you're unsure about exact quantities, give reasonable esti
                 <div key={index} className="flex gap-3 bg-gray-50 rounded-xl p-3 border border-gray-100">
                   <div className="flex-shrink-0 w-32 h-24 rounded-lg overflow-hidden bg-gray-200">
                     {step.image_url ? (
-                      <img src={step.image_url} alt={`Step ${index + 1}`} className="w-full h-full object-cover" />
+                      <img src={step.image_url} alt={`Step ${index + 1}`} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon className="w-8 h-8" /></div>
                     )}

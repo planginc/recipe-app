@@ -1,13 +1,16 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2, ExternalLink, Save, EyeOff, Eye, Plus, X } from 'lucide-react'
 import { FOLDER_OPTIONS, DIETARY_OPTIONS, CATEGORY_OPTIONS } from '../lib/constants'
 import { AUTO_TAG_URL } from '../lib/config'
 import { useRecipes } from '../hooks/useRecipes'
+import { useToast } from '../hooks/useToast'
+import { parseMetadata } from '../lib/parseMetadata'
 
 function RecipeDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const toast = useToast()
   const { data: allRecipes, loading: listLoading, updateRecipe } = useRecipes()
 
   const [recipe, setRecipe] = useState(null)
@@ -33,9 +36,7 @@ function RecipeDetailPage() {
       const found = allRecipes.find(r => String(r.id) === String(id))
       if (found) {
         setRecipe(found)
-        const metadata = typeof found.metadata === 'string'
-          ? JSON.parse(found.metadata || '{}')
-          : (found.metadata || {})
+        const metadata = parseMetadata(found)
         setRating(metadata.rating || 0)
         setIsTried(metadata.tried_status || false)
         setSelectedFolder(metadata.physical_location || '')
@@ -59,13 +60,11 @@ function RecipeDetailPage() {
     }
   }, [id, allRecipes, listLoading])
 
-  async function handleSave(notesOverride) {
+  const handleSave = useCallback(async (notesOverride) => {
     if (!recipe) return
     try {
       setSaving(true)
-      const currentMetadata = typeof recipe.metadata === 'string'
-        ? JSON.parse(recipe.metadata || '{}')
-        : (recipe.metadata || {})
+      const currentMetadata = parseMetadata(recipe)
       const updatedMetadata = {
         ...currentMetadata,
         rating,
@@ -79,28 +78,38 @@ function RecipeDetailPage() {
       }
       await updateRecipe(recipe.id, { metadata: updatedMetadata })
       setRecipe({ ...recipe, metadata: updatedMetadata })
-      alert('Recipe saved successfully!')
+      toast('Recipe saved!', 'success')
     } catch (err) {
-      alert('Error saving recipe: ' + err.message)
+      toast('Error saving recipe: ' + err.message, 'error')
     } finally {
       setSaving(false)
     }
-  }
+  }, [recipe, rating, isTried, selectedFolder, dietaryTags, category, isHidden, notes, imageUrl, updateRecipe, toast])
+
+  // Ctrl+S / Cmd+S keyboard shortcut
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        handleSave()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [handleSave])
 
   async function handleToggleHide() {
     if (!recipe) return
     const newHidden = !isHidden
     try {
-      const currentMetadata = typeof recipe.metadata === 'string'
-        ? JSON.parse(recipe.metadata || '{}')
-        : (recipe.metadata || {})
+      const currentMetadata = parseMetadata(recipe)
       const updatedMetadata = { ...currentMetadata, hidden: newHidden }
       await updateRecipe(recipe.id, { metadata: updatedMetadata })
       setIsHidden(newHidden)
       setRecipe({ ...recipe, metadata: updatedMetadata })
-      alert(newHidden ? 'Recipe hidden from view.' : 'Recipe is now visible.')
+      toast(newHidden ? 'Recipe hidden from view.' : 'Recipe is now visible.', 'info')
     } catch (err) {
-      alert('Error: ' + err.message)
+      toast('Error: ' + err.message, 'error')
     }
   }
 
@@ -112,7 +121,7 @@ function RecipeDetailPage() {
 
   async function handleAutoTag() {
     if (!AUTO_TAG_URL) {
-      alert('Auto-tag URL not configured. Set VITE_AUTO_TAG_URL in your .env.')
+      toast('Auto-tag URL not configured. Set VITE_AUTO_TAG_URL in your .env.', 'error')
       return
     }
     setAutoTagging(true)
@@ -129,12 +138,12 @@ function RecipeDetailPage() {
         const merged = [...new Set([...dietaryTags, ...suggested])]
         setDietaryTags(merged)
         const newTags = suggested.filter(t => !dietaryTags.includes(t))
-        alert(`AI added tags: ${newTags.length > 0 ? newTags.join(', ') : '(none new)'}\n\nReview and click Save Changes to apply.`)
+        toast(newTags.length > 0 ? `AI added tags: ${newTags.join(', ')}. Review and save.` : 'No new tags to add.', 'success')
       } else {
-        alert('AI could not detect any dietary tags for this recipe.')
+        toast('AI could not detect any dietary tags for this recipe.', 'info')
       }
-    } catch (err) {
-      alert('Error getting AI suggestions. Please tag manually.')
+    } catch {
+      toast('Error getting AI suggestions. Please tag manually.', 'error')
     } finally {
       setAutoTagging(false)
     }
@@ -167,10 +176,7 @@ function RecipeDetailPage() {
     )
   }
 
-  const metadata = typeof recipe.metadata === 'string'
-    ? JSON.parse(recipe.metadata || '{}')
-    : (recipe.metadata || {})
-
+  const metadata = parseMetadata(recipe)
   const displayImageUrl = imageUrl || metadata.image_url || 'https://images.unsplash.com/photo-1495521841615-2621ee960588?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80'
   const sourceUrl = metadata.source_url
 
@@ -180,16 +186,16 @@ function RecipeDetailPage() {
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
           <button onClick={() => navigate('/')} className="flex items-center gap-2 text-gray-700 hover:text-gray-900 transition-colors">
             <ArrowLeft className="w-5 h-5" />
-            Back to Recipes
+            <span className="hidden sm:inline">Back to Recipes</span>
           </button>
           <div className="flex gap-3">
             <button
-              onClick={handleSave}
+              onClick={() => handleSave()}
               disabled={saving}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Saving...' : 'Save'}
             </button>
             <button
               onClick={handleToggleHide}
@@ -207,7 +213,7 @@ function RecipeDetailPage() {
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
           <div className="relative group">
-            <img src={displayImageUrl} alt={recipe.title} className="w-full h-96 object-cover" />
+            <img src={displayImageUrl} alt={recipe.title} className="w-full h-96 object-cover" loading="lazy" />
             <button
               onClick={() => setEditingImage(true)}
               className="absolute top-4 right-4 bg-white/90 hover:bg-white text-gray-700 px-4 py-2 rounded-lg text-sm font-medium shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
@@ -288,7 +294,7 @@ function RecipeDetailPage() {
           </div>
 
           <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-            <label className="block text-lg font-bold text-gray-900 mb-2">⭐ Your Rating</label>
+            <label className="block text-lg font-bold text-gray-900 mb-2">Your Rating</label>
             <p className="text-sm text-gray-600 mb-3">{rating === 0 ? 'Click to rate this recipe after you try it!' : `You rated this ${rating} star${rating > 1 ? 's' : ''}!`}</p>
             <div className="flex items-center gap-2">
               {[1, 2, 3, 4, 5].map((star) => (
@@ -302,7 +308,7 @@ function RecipeDetailPage() {
             <div className="flex items-center justify-between mb-2">
               <label className="block text-sm font-medium text-gray-700">Dietary Tags</label>
               <button onClick={handleAutoTag} disabled={autoTagging} className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-700 font-medium disabled:opacity-50">
-                {autoTagging ? <Loader2 className="w-4 h-4 animate-spin" /> : '✨'}
+                {autoTagging ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 {autoTagging ? 'Analyzing...' : 'Auto-Tag with AI'}
               </button>
             </div>
